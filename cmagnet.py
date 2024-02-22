@@ -1,64 +1,108 @@
+import os, sys
+os.system('taskkill.exe /f /im i_view64.exe')
 
-import sys
-sys.path.append("build")
 from SparseMatPy import *
-
-from netgen.csg import *
+from netgen.occ import *
 from ngsolve import *
+from numpy import *
 
+cyl = Cylinder(Pnt(0,0,0), Z, r=1.0, h=1.0).bc("S_side")
+cyl.mat("cyl")
+cyl.faces.Min(Z).name="S_bottom"
+cyl.faces.Max(Z).name="S_top"
 
-def MakeGeometry():
-    geometry = CSGeometry()
-    box = OrthoBrick(Pnt(-1,-1,-1),Pnt(2,1,2)).bc("outer")
+geo = OCCGeometry(cyl)
+mesh = Mesh(geo.GenerateMesh(maxh=0.2))
+mesh.Curve(4)
+mesh.GetMaterials(), mesh.GetBoundaries()
 
-    core = OrthoBrick(Pnt(0,-0.05,0),Pnt(0.8,0.05,1))- \
-           OrthoBrick(Pnt(0.1,-1,0.1),Pnt(0.7,1,0.9))- \
-           OrthoBrick(Pnt(0.5,-1,0.4),Pnt(1,1,0.6)).maxh(0.2).mat("core")
+order = 2
+fes = HCurl(mesh, order=order, dirichlet="S_side|S_bottom|S_top", type1=True, nograds = False)
+print ("Hcurl_ndof =", fes.ndof)
 
-    coil = (Cylinder(Pnt(0.05,0,0), Pnt(0.05,0,1), 0.3) - \
-            Cylinder(Pnt(0.05,0,0), Pnt(0.05,0,1), 0.15)) * \
-            OrthoBrick (Pnt(-1,-1,0.3),Pnt(1,1,0.7)).maxh(0.2).mat("coil")
-
-    geometry.Add ((box-core-coil).mat("air"))
-    geometry.Add (core)
-    geometry.Add (coil)
-    return geometry
-
-
-
-ngmesh = MakeGeometry().GenerateMesh(maxh=0.5)
-ngmesh.Save("coil.vol")
-mesh = Mesh(ngmesh)
-
-# curve elements for geometry approximation
-mesh.Curve(5)
-
-fes = HCurl(mesh, order=4, dirichlet="outer", nograds = True)
-print("ndof =", fes.ndof)
-
-# u and v refer to trial and test-functions in the definition of forms below
 u = fes.TrialFunction()
 v = fes.TestFunction()
 
-mur = mesh.MaterialCF({ "core" : 1000 }, default=1)
-mu0 = 1.257e-6
-nu = 1/(mu0*mur)
+r = 1.0
+h = 0.2
+mu = 4*pi*1e-7
+J = CoefficientFunction((0,0,1))
 
-a = BilinearForm(fes, symmetric=True)
-a += nu*curl(u)*curl(v)*dx
+a = BilinearForm(fes)
+a += 1/mu*curl(u)*curl(v)*dx
+a += 1e-6/mu*u*v*dx
 
 f = LinearForm(fes)
-f += CoefficientFunction((y,0.05-x,0)) * v * dx("coil", bonus_intorder=10)
+f += v*J * dx
+
+gfA = GridFunction(fes)
 
 with TaskManager():
-    a.Assemble()
-    f.Assemble()
-coo = a.mat.COO()
-rows = coo[0].NumPy()
-cols = coo[1].NumPy()
-vals = coo[2].NumPy()
-gfu = GridFunction(fes)
-mat = SparseMat(rows, cols, vals, fes.ndof)
-ICCG(mat, f.vec.FV().NumPy(), gfu.vec.FV().NumPy(), 5000, 1e-5, 1.1)
-Draw(curl(gfu), mesh, "B")
-print("done")
+	c = Preconditioner(a, type="local")
+	a.Assemble()
+	f.Assemble()
+
+xx = linspace(-r,r,100)
+solvers.CG(sol=gfA.vec, rhs=f.vec, mat=a.mat, pre=c.mat, tol=1e-12, printrates=False, maxsteps=1000)
+H = curl(gfA)/mu
+Hy1 = array([H[1](mesh(xi, 0.0, 0.1)) for xi in xx])
+
+import scipy.sparse as sp
+A = sp.csr_matrix (a.mat.CSR())
+Acut = A[:,fes.FreeDofs()][fes.FreeDofs(),:]
+fcut = array(f.vec.FV())[fes.FreeDofs()]
+ucut = array(f.vec.FV(), copy=True)[fes.FreeDofs()]
+
+rows, cols = Acut.nonzero()
+vals = Acut[rows, cols]
+vals = ravel(vals)
+mat = SparseMat(rows, cols, vals, len(fcut))
+tol = 1e-8
+max_iter = 2000
+acc = 1.15
+is_diag_scale=True
+is_save_best=True
+is_save_residual_log=True
+diverge_judge_type=1
+bad_div_val=100
+bad_div_count_thres=100
+x = ICCG(tol, max_iter, acc, mat, fcut, ucut, is_diag_scale, is_save_best, is_save_residual_log, diverge_judge_type, bad_div_val, bad_div_count_thres)
+#x = ICCG(1e-8, 2000, 1.15, mat, fcut, ucut, True, True, True, 1, 100.0, bad_div_count_thres=100)
+array(gfA.vec.FV(), copy=False)[fes.FreeDofs()] = ucut
+
+H = curl(gfA)/mu
+Hy2 = array([H[1](mesh(xi, 0.0, 0.1)) for xi in xx])
+
+from matplotlib.font_manager import FontProperties
+import matplotlib.pyplot as plt
+import matplotlib
+
+matplotlib.rc('mathtext', **{'rm':'serif','it':'serif:italic','bf':'serif:bold','fontset':'cm'})
+plt.figure(figsize=(3,3),dpi=400)
+ax = plt.axes([0.20,0.15,0.75,0.75])
+ax.set_xlim(-r,r)
+ax.set_ylim(-0.6,0.6)
+ax.set_xlabel('${\\it x}$ (mm)',fontname='times new roman')
+ax.set_ylabel('${\\it y}$ (mm)',fontname='times new roman')
+
+ax.plot(xx,xx/2,'k-',linewidth=0.5);
+ax.plot(xx,Hy1,'r--',linewidth=0.5);
+ax.plot(xx,Hy2,'b:',linewidth=0.5);
+
+ax.xaxis.grid(True, which='major', linestyle=':', linewidth=0.7)
+ax.xaxis.grid(True, which='minor', linestyle=':', linewidth=0.5)
+ax.yaxis.grid(True, which='major', linestyle=':', linewidth=0.5)
+ax.yaxis.grid(True, which='minor', linestyle=':', linewidth=0.5)
+ax.tick_params(left=True, right=True, top=True, bottom=True, which="major", direction='in', length=2 ,width=0.4, pad=3)
+
+plt.setp(ax.get_xticklabels(),fontname='times new roman')
+plt.setp(ax.get_yticklabels(),fontname='times new roman')
+
+ax.legend(['Analytic', 'CG Solver', 'Shifted ICCG'], frameon=False, bbox_to_anchor=(0.35,0.85),loc='center',framealpha=0.0,fancybox='none',edgecolor='none',prop={"family":'Times New Roman',"size":8})
+
+
+
+FileName = os.path.basename(__file__).replace(".py",".png")
+plt.savefig(FileName)
+os.startfile(FileName)
+

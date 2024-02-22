@@ -1,0 +1,5 @@
+C:/Work/BaseLibraries/build/CMakeFiles/ALL_BUILD.dir
+C:/Work/BaseLibraries/build/CMakeFiles/ZERO_CHECK.dir
+C:/Work/BaseLibraries/build/SparseMat/CMakeFiles/SparseMat.dir
+C:/Work/BaseLibraries/build/SparseMat/CMakeFiles/SparseMatPy.dir
+C:/Work/BaseLibraries/build/SparseMat/CMakeFiles/ALL_BUILD.dir

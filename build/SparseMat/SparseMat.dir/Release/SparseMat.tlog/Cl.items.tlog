@@ -1,0 +1,7 @@
+C:\Work\BaseLibraries\SparseMat\SparseMat.cpp;C:\Work\BaseLibraries\build\SparseMat\SparseMat.dir\Release\SparseMat.obj
+C:\Work\BaseLibraries\SparseMat\SparseMatC.cpp;C:\Work\BaseLibraries\build\SparseMat\SparseMat.dir\Release\SparseMatC.obj
+C:\Work\BaseLibraries\SparseMat\SparseMatOperators.cpp;C:\Work\BaseLibraries\build\SparseMat\SparseMat.dir\Release\SparseMatOperators.obj
+C:\Work\BaseLibraries\SparseMat\MatSolvers_ICCG.cpp;C:\Work\BaseLibraries\build\SparseMat\SparseMat.dir\Release\MatSolvers_ICCG.obj
+C:\Work\BaseLibraries\SparseMat\MatSolvers_ICCOCG.cpp;C:\Work\BaseLibraries\build\SparseMat\SparseMat.dir\Release\MatSolvers_ICCOCG.obj
+C:\Work\BaseLibraries\SparseMat\MatSolvers_Eigen.cpp;C:\Work\BaseLibraries\build\SparseMat\SparseMat.dir\Release\MatSolvers_Eigen.obj
+C:\Work\BaseLibraries\SparseMat\MatSolvers_MKL.cpp;C:\Work\BaseLibraries\build\SparseMat\SparseMat.dir\Release\MatSolvers_MKL.obj
